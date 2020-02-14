@@ -1,0 +1,128 @@
+PHPExcel. How to check if current cell is merged with another?
+
+
+
+$workbook = new PHPExcel;
+$sheet = $workbook->getActiveSheet();
+$sheet->mergeCells('A1:E1');
+
+$cell = $sheet->getCell('A1');
+
+// Check if cell is merged
+foreach ($sheet->getMergeCells() as $cells) {
+    if ($cell->isInRange($cells)) {
+        echo 'Cell is merged!'
+        break;
+    }
+}
+
+How to get a value from merged cell using PHPExcel?
+
+
+Here, I'm reading an excel sheet which may or may not have merged cells. Well looping through the cells in the current sheet, if i come across a merged cell then i should be able to find its range and value.
+
+These are the steps:- 
+
+1. Reading the cell A1 or B1 or B7 or A9.
+2. Check whether its merged with any other cell.
+3. If the cells are merged then get the range of the merge, for ex: A1 to A7 or A1 to D1
+4. And finally after getting the range get the value.
+
+Answer :
+For any given cell object, there are a number of helper methods available
+
+$cell->isInMergeRange()
+Will return a boolean, a true/false value indicating if a cell is part of a merge range
+
+$cell->getMergeRange()
+Will return the merge range that the cell is apart of (e.g. "A1:C3"), or a boolean false if it is not part of a merge range
+
+$cell->isMergeRangeValueCell()
+Will return a boolean true/false indicating if this cell is the master cell in the range (top left cell) in a merge range (that holds the actual data value)
+
+Additionally, the worksheet object has a method
+
+$worksheet->getMergeCells()
+which will return an array listing all the merge ranges within the worksheet
+
+Lastly, a call to the static method
+
+PHPExcel_Cell::splitRange($mergeRange);
+passing in a range value like 'A1:C3', will return an array with two elements; the first being the address of the top-left cell in the range (that holds the actual data value), the second being the bottom right cell address, the "end" of the range
+
+
+
+Read excel sheet containing merged cells using PHPExcel
+
+I want to read an excel sheet completely and using AJAX send each row to another page for processing. So I have used the following code for converting the excel sheet data into JSON array(Reference PHPExcel example provided in Library):
+
+<?php
+error_reporting(E_ALL);
+set_time_limit(0);
+
+date_default_timezone_set('Asia/Kolkata');
+set_include_path(get_include_path() . PATH_SEPARATOR . 'PHPExcel-1.8/Classes/');
+require_once 'PHPExcel/IOFactory.php';
+
+$inputFileType = PHPExcel_IOFactory::identify($fileLocation);
+$objReader = PHPExcel_IOFactory::createReader($inputFileType);
+$objReader->setLoadSheetsOnly("SHEETNAME");
+$objPHPExcel = $objReader->load($fileLocation);
+
+$data = $objPHPExcel->getActiveSheet()->toArray(null,true,true,true);
+?>
+Here $filelocation is the location of the uploaded file which is to be read for sending the rows individually using AJAX to another page. I am using $data in javascript as
+
+DataToBeUploaded=<?php echo json_encode($data);?>;
+But the excel sheet contains some merged cells so PHPExcel is not able to read the values in these merged cells. Hence values in these cells are read as NULL.
+
+Is there a way where I can use the merged cells' upper left cell value for all of the subsequent cells? (Actually in my case cells are merged vertically only)
+
+Eg. I have (Assume rows are numbered from 1 and columns from A)
+
+merged cells excel sheet example
+
+Here PHPExcel reads this as:
+
+data[1][A]='abc'
+$data[1][B]='123'
+
+$data[2][A]=''
+$data[2][B]='456'
+
+$data[3][A]=''
+$data[3][B]='789'
+I want the snippet to result in these values:
+
+data[1][A]='abc'
+$data[1][B]='123'
+
+$data[2][A]='abc'
+$data[2][B]='456'
+
+$data[3][A]='abc'
+$data[3][B]='789'
+
+Answer :
+
+I have written the following snippet:
+
+$referenceRow=array();
+for ( $row = 2; $row <= $noOfBooks; $row++ ){
+     for ( $col = 0; $col < 7; $col++ ){
+         if (!$objPHPExcel->getActiveSheet()->getCellByColumnAndRow( $col, $row )->isInMergeRange() || $objPHPExcel->getActiveSheet()->getCellByColumnAndRow( $col, $row )->isMergeRangeValueCell()) {
+             // Cell is not merged cell
+             $data[$row][$col] = $objPHPExcel->getActiveSheet()->getCellByColumnAndRow( $col, $row )->getCalculatedValue();
+
+             $referenceRow[$col]=$data[$row][$col];  
+             //This will store the value of cell in $referenceRow so that if the next row is merged then it will use this value for the attribute
+          } else {
+             // Cell is part of a merge-range
+             $data[$row][$col]=$referenceRow[$col];  
+             //The value stored for this column in $referenceRow in one of the previous iterations is the value of the merged cell
+          }
+
+      }
+ }
+This will give the result exactly as required
+
